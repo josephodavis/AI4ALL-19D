@@ -20,10 +20,13 @@ class FirstCNN(nn.Module):
         self.fc2 = nn.Linear(64, 5)
 
     def forward(self, x):
+        print(x.shape)
         x = self.pool(F.relu(self.conv1(x)))
+        print(x.shape)
         x = self.pool(F.relu(self.conv2(x)))
-        x = F.relu(self.conv3(x))
-        x = self.adaptive_pool(x)
+        print(x.shape)
+        x = self.adaptive_pool(F.relu(self.conv3(x)))
+        print(x.shape)
 
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))

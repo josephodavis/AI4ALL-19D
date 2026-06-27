@@ -6,9 +6,8 @@ from torchvision import transforms
 import pandas as pd
 from tqdm import tqdm
 
-from model.model import FirstCNN
-from data.dataset import BlindnessDataset
-
+from model import FirstCNN
+from dataset import BlindnessDataset
 
 def train_one_epoch(model, loader, optimizer, criterion, device):
 
