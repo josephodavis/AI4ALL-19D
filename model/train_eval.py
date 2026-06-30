@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 import pandas as pd
 from tqdm import tqdm
+from sklearn.metrics import classification_report
 
 from model import FirstCNN
 from dataset import BlindnessDataset
@@ -43,18 +44,18 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
     # return loss, accuracy
     return total_loss / total, correct / total
 
-
 def evaluate(model, loader, criterion, device):
     # evaluation mode
     model.eval()
 
+    # keep track of loss, preds, and labels for accuracy + classification report
     total_loss = 0.0
-    correct = 0
-    total = 0
+    all_preds = []
+    all_labels = []
 
-    # do not calculate gradients
+    # turn off gradient opimization
     with torch.no_grad():
-        # progress bar with validation dataloader
+        # validation progress bar
         loop = tqdm(loader, desc="  Val  ", leave=False)
         for images, labels in loop:
             images, labels = images.to(device), labels.to(device)
@@ -63,12 +64,23 @@ def evaluate(model, loader, criterion, device):
             loss = criterion(outputs, labels)
 
             total_loss += loss.item() * images.size(0)
-            correct += (outputs.argmax(dim=1) == labels).sum().item()
-            total += images.size(0)
-            loop.set_postfix(loss=f"{loss.item():.4f}", acc=f"{correct / total:.3f}")
+            preds = outputs.argmax(dim=1)
+            all_preds.extend(preds.cpu().tolist())
+            all_labels.extend(labels.cpu().tolist())
+            loop.set_postfix(loss=f"{loss.item():.4f}")
 
-    # return loss, accuracy
+    total = len(all_labels)
+    # how many times prediction == label
+    correct = sum(p == l for p, l in zip(all_preds, all_labels))
+
+    # print classification report
+    print(classification_report(
+        all_labels, all_preds,
+        target_names=["No DR", "Mild", "Moderate", "Severe", "Proliferative"],
+    ))
+    
     return total_loss / total, correct / total
+
 
 
 def train(
@@ -126,7 +138,9 @@ def train(
             val_acc=f"{val_acc:.3f}",
         )
 
-    # return trained model
+    # save and return trained model
+    torch.save(model.state_dict(), "model.pth")
+    print("Model saved to model.pth")
     return model
 
 if __name__ == "__main__":
