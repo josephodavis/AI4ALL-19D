@@ -1,8 +1,12 @@
+# imports
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
+import torchvision.models as models
 import pandas as pd
 from tqdm import tqdm
 from sklearn.metrics import classification_report
@@ -81,12 +85,16 @@ def evaluate(model, loader, criterion, device):
     
     return total_loss / total, correct / total
 
+# Resolve paths from the project root regardless of where the notebook runs.
+project_root = Path.cwd()
+if project_root.name == "data":
+    project_root = project_root.parent
 
 
 def train(
     model,
-    csv_path="data/raw/aptos2019-blindness-detection/train.csv",
-    image_dir="data/raw/aptos2019-blindness-detection/train_images",
+    csv_path=project_root / "data" / "raw" / "aptos2019-blindness-detection" / "train.csv",
+    image_dir=project_root / "data" / "raw" / "aptos2019-blindness-detection" / "train_images",
     num_epochs=10,
     batch_size=32,
     lr=1e-3,
@@ -143,5 +151,16 @@ def train(
     print("Model saved to model.pth")
     return model
 
+# if __name__ == "__main__":
+#     train(FirstCNN())
+
 if __name__ == "__main__":
-    train(FirstCNN())
+    # load the pre-trained ResNet18 model
+    resnet_model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    
+    # replace the final fully connected layer to match the number of classes (5 in this case)
+    in_features = resnet_model.fc.in_features
+    resnet_model.fc = nn.Linear(in_features, 5)
+    
+    # train the modified ResNet18 model
+    train(resnet_model, num_epochs=10, lr=1e-4) 
