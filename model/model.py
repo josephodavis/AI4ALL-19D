@@ -6,47 +6,47 @@ class FirstCNN(nn.Module):
     def __init__(self):
         super().__init__()
         
-        # 1. Convolution Layers
+        # Convolution Layers
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.conv4 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
         self.conv5 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
         
-        # 2. Batch Normalization Layers
+        # Batch Normalization Layers
         self.bn1 = nn.BatchNorm2d(32)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(256)
         self.bn5 = nn.BatchNorm2d(512)
         
-        # 3. Pooling Layers
-        self.pool = nn.MaxPool2d(2, 2)          # Standard pooling to shrink resolution by half
-        self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1)) # Final global pool ONLY
+        # Pooling Layers
+        self.pool = nn.MaxPool2d(2, 2)          
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1)) 
         
-        # 4. Fully Connected Layers
+        # Fully Connected Layers
         self.fc1 = nn.Linear(512, 256)
-        self.bn_fc1 = nn.BatchNorm1d(256)        # Highly recommended to stabilize FC layers
-        self.dropout = nn.Dropout(0.3)          # Highly recommended to fight oversampling memorization
+        self.bn_fc1 = nn.BatchNorm1d(256) # stabilize the dense layer
+        self.dropout = nn.Dropout(0.3) # helps prevent memory overfitting          
         self.fc2 = nn.Linear(256, 5)
 
     def forward(self, x):
-        # Gradual feature extraction blocks: Conv -> BN -> ReLU -> MaxPool
+        # Conv -> BN -> ReLU -> MaxPool
         x = self.pool(F.relu(self.bn1(self.conv1(x))))  # Input 224x224 -> Outputs 112x112
         x = self.pool(F.relu(self.bn2(self.conv2(x))))  # Outputs 56x56
         x = self.pool(F.relu(self.bn3(self.conv3(x))))  # Outputs 28x28
         x = self.pool(F.relu(self.bn4(self.conv4(x))))  # Outputs 14x14
         x = self.pool(F.relu(self.bn5(self.conv5(x))))  # Outputs 7x7
         
-        # Collapse the remaining 7x7 pixels down to a single 1x1 summary vector per channel
-        x = self.adaptive_pool(x)                       # Outputs 1x1
+        # collapse the spatial dimensions to a fixed size (1x1) for the dense layers
+        x = self.adaptive_pool(x)                       
         
         # Flatten and process dense features
-        x = torch.flatten(x, 1)                         # Shape becomes (batch_size, 512)
+        x = torch.flatten(x, 1)                        
         
         x = F.relu(self.bn_fc1(self.fc1(x)))
         x = self.dropout(x)
-        x = self.fc2(x)                                 # Raw logits for CrossEntropyLoss
+        x = self.fc2(x)                                
         return x
 
 # class FirstCNN(nn.Module):
