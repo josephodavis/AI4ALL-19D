@@ -1,4 +1,5 @@
 import os
+import random
 from pathlib import Path
 import numpy as np
 import torch
@@ -8,12 +9,33 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import transforms
 import torchvision.models as models
 import pandas as pd
+import matplotlib.pyplot as plt
 from tqdm import tqdm
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.model_selection import StratifiedShuffleSplit, GroupShuffleSplit  # <-- Added for advanced splitting
 
 from model import FirstCNN
 from dataset import BlindnessDataset
+
+SEED = 42
+
+
+def set_global_seed():
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(SEED)
+        torch.cuda.manual_seed_all(SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def seed_worker(worker_id):
+    worker_seed = SEED + worker_id
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    torch.manual_seed(worker_seed)
 
 def train_one_epoch(model, loader, optimizer, criterion, device): 
 
@@ -49,7 +71,7 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
     # return loss, accuracy
     return total_loss / total, correct / total
 
-def evaluate(model, loader, criterion, device):
+def evaluate(model, loader, criterion, device, save_plot=False, plot_title=None):
     # evaluation mode
     model.eval()
 
@@ -84,6 +106,23 @@ def evaluate(model, loader, criterion, device):
         target_names=["No DR", "Mild", "Moderate", "Severe", "Proliferative"],
         zero_division=0
     ))
+
+    # print confusion matrix
+    cm = confusion_matrix(all_labels, all_preds, labels=[0, 1, 2, 3, 4])
+    print("Confusion matrix:")
+    print(cm)
+
+    # 
+    if save_plot:
+        disp = ConfusionMatrixDisplay(
+            confusion_matrix=cm,
+            display_labels=["No DR", "Mild", "Moderate", "Severe", "Proliferative"],
+        )
+        disp.plot(cmap="Blues", values_format="d")
+        plt.title(plot_title or "Validation Confusion Matrix")
+        plt.tight_layout()
+        plt.savefig("confusion_matrix.png", dpi=150, bbox_inches="tight")
+        plt.close()
     
     return total_loss / total, correct / total
 
@@ -103,8 +142,17 @@ def train(
     lr=1e-3,
     val_split=0.2,
 ):
+    set_global_seed()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}\n")
+
+    diagnosis_map = {
+        0: "No DR",
+        1: "Mild",
+        2: "Moderate",
+        3: "Severe",
+        4: "Proliferative",
+    }
 
     # Data augmentation pipeline for training data
     train_transform = transforms.Compose([
@@ -126,6 +174,28 @@ def train(
 
     # Load master dataframe
     df = pd.read_csv(csv_path)
+
+    def get_family_id(image_name):
+        image_name = str(image_name)
+        return image_name.split("_")[0] if "_" in image_name else image_name
+
+    # Reserve a fixed demo holdout set before any train/validation split.
+    # These rows are removed from the training pool and saved for later demo use.
+    demo_df = (
+        df.groupby("level", group_keys=False)
+        .apply(lambda group: group.sample(n=min(8, len(group)), random_state=42))
+        .copy()
+    )
+    demo_indices = demo_df.index
+    demo_df["diagnosis"] = demo_df["level"].map(diagnosis_map)
+    demo_df = demo_df[["image", "level", "diagnosis"]].reset_index(drop=True)
+    blocked_family_ids = set(demo_df["image"].map(get_family_id))
+    demo_holdout_path = project_root / "data" / "demo_holdout_set.csv"
+    demo_df.to_csv(demo_holdout_path, index=False)
+    print(f"Saved demo holdout set to {demo_holdout_path} ({len(demo_df)} images)")
+
+    df["family_id"] = df["image"].map(get_family_id)
+    df = df[~df["family_id"].isin(blocked_family_ids)].drop(columns=["family_id"])
     
     # -------------------------------------------------------------
     # ADVANCED SPLITTING & DOWNSAMPLING LOGIC (Replaces random_split)
@@ -189,7 +259,8 @@ def train(
     sampler = WeightedRandomSampler(
         weights=sample_weights, 
         num_samples=len(sample_weights), 
-        replacement=True
+        replacement=True,
+        generator=torch.Generator().manual_seed(SEED)
     )
     # -------------------------------------------------------------
 
@@ -198,8 +269,26 @@ def train(
     val_set = BlindnessDataset(val_df, image_dir, transform=val_transform, id_col="image", label_col="level")
 
     # Construct DataLoaders (added pin_memory=True for faster VRAM delivery)
-    train_loader = DataLoader(train_set, batch_size=batch_size, sampler=sampler, num_workers=2, pin_memory=True)
-    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    train_loader_generator = torch.Generator().manual_seed(SEED)
+    val_loader_generator = torch.Generator().manual_seed(SEED)
+    train_loader = DataLoader(
+        train_set,
+        batch_size=batch_size,
+        sampler=sampler,
+        num_workers=2,
+        pin_memory=True,
+        worker_init_fn=seed_worker,
+        generator=train_loader_generator,
+    )
+    val_loader = DataLoader(
+        val_set,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2,
+        pin_memory=True,
+        worker_init_fn=seed_worker,
+        generator=val_loader_generator,
+    )
 
     model = model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -207,6 +296,11 @@ def train(
 
     # Track the absolute lowest validation loss across epochs
     best_val_loss = float('inf')
+    best_epoch = 0
+
+    # Track training and validation losses for plotting
+    train_losses = []
+    val_losses = []
 
     # progress bar for specific epoch
     epoch_bar = tqdm(range(1, num_epochs + 1), desc="Epochs")
@@ -214,6 +308,9 @@ def train(
         # calculate training and validation loss, accuracy
         train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, criterion, device)
         val_loss, val_acc = evaluate(model, val_loader, criterion, device)
+        # append losses for plotting
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
 
         # print loss + accuracy
         epoch_bar.write(
@@ -229,13 +326,40 @@ def train(
         # Check if this epoch's validation loss is lower than our previous best
         if val_loss < best_val_loss:
             best_val_loss = val_loss
+            best_epoch = epoch
             # Save the optimal configuration weights separately
             torch.save(model.state_dict(), "best_model.pth")
             epoch_bar.write(f"--> Found better weights! Saved checkpoint to best_model.pth (Val Loss: {best_val_loss:.4f})")
 
+    # Plotting loss curves for training and validation
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(1, num_epochs + 1), train_losses, label="Training Loss")
+    plt.plot(range(1, num_epochs + 1), val_losses, label="Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training and Validation Loss Curves")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig("loss_curves.png", dpi=150, bbox_inches="tight")
+    plt.close()
+    print("Saved loss curves to loss_curves.png")
+
     # save and return trained model
     torch.save(model.state_dict(), "model.pth")
     print("Final epoch model saved to model.pth")
+
+    model.load_state_dict(torch.load("best_model.pth", map_location=device))
+    print(f"Loaded best_model.pth back into the model for final evaluation (best epoch: {best_epoch}).")
+    evaluate(
+        model,
+        val_loader,
+        criterion,
+        device,
+        save_plot=True,
+        plot_title=f"Validation Confusion Matrix - Best Epoch {best_epoch}",
+    )
+
     print(f"Training absolute complete. Best validation loss achieved: {best_val_loss:.4f}")
     return model
 

@@ -12,6 +12,12 @@ data/raw/aptos2019-blindness-detection/
 best_model.pth
 model.pth
 
+# Generated plots and demo exports
+*.png
+loss_curves.png
+confusion_matrix.png
+data/demo_holdout_set.csv
+
 # Python Cache (Leaves out unnecessary compiler junk)
 __pycache__/
 model/__pycache__/
