@@ -126,20 +126,38 @@ def evaluate(model, loader, criterion, device, save_plot=False, plot_title=None)
     
     return total_loss / total, correct / total
 
+# function for transforms // could add parameters
+def get_transforms():
+    train_transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=(-20, 20)),
+        transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.1, hue=0),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+
+    val_transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+
+    return train_transform, val_transform
+
 # Resolve paths from the project root regardless of where the notebook runs.
 project_root = Path.cwd()
 if project_root.name == "data":
     project_root = project_root.parent
-
 
 def train(
     model,
     # Defaulting paths to match your new blended directory layout
     csv_path=project_root / "data" / "raw" / "2019_2015_data" / "traintestLabels15_trainLabels19.csv",
     image_dir=project_root / "data" / "raw" / "2019_2015_data" / "resized_traintest15_train19",
-    num_epochs=10,
+    num_epochs=25,
     batch_size=32,
-    lr=1e-3,
+    lr=3e-4,
     val_split=0.2,
 ):
     set_global_seed()
@@ -154,23 +172,8 @@ def train(
         4: "Proliferative",
     }
 
-    # Data augmentation pipeline for training data
-    train_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(degrees=(-20, 20)),
-        transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.1, hue=0),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-])
-
-    # val pipeline no augmentation, just resizing and normalization
-    val_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-    ])
-
+    # Get data transforms
+    train_transform, val_transform = get_transforms()
 
     # Load master dataframe
     df = pd.read_csv(csv_path)
