@@ -5,5 +5,3 @@ data/raw/aptos2019-blindness-detection/*
 __pycache__/
 *.py[cod]
 *$py.class
-
-best_model.pth
