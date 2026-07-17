@@ -1,5 +1,5 @@
 # AI4ALL-19D
-AI4ALL Group 19D Project Repo
+AI4ALL Group 19D Project Repo - https://blindnessdetection.streamlit.app/
 
 ## Setup Instructions
 1. After creating your virtual environment, in your terminal, run: <code>pip install -r requirements.txt</code>
