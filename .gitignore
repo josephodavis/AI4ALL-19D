@@ -1,7 +1,10 @@
 venv/
 .vscode/
-data/raw/aptos2019-blindness-detection/*
+data/raw/2019_2015_data/*
 
 __pycache__/
 *.py[cod]
 *$py.class
+
+.claude/
+.devcontainer/
