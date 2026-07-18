@@ -1,0 +1,41 @@
+image,level,diagnosis
+11870_right,0,No DR
+33761_right,0,No DR
+36557_left,0,No DR
+37381_right,0,No DR
+38141_right,0,No DR
+25699_left,0,No DR
+33818_left,0,No DR
+39872_left,0,No DR
+10468_right,1,Mild
+23471_left,1,Mild
+25280_right,1,Mild
+36862_left,1,Mild
+7997_right,1,Mild
+32972_right,1,Mild
+44110_right,1,Mild
+39402_left,1,Mild
+31712_left,2,Moderate
+18553_left,2,Moderate
+32083_right,2,Moderate
+26964_left,2,Moderate
+6e68e742f5bc,2,Moderate
+5093_right,2,Moderate
+1444_right,2,Moderate
+41027_left,2,Moderate
+13190_left,3,Severe
+6baafa56895c,3,Severe
+24187_left,3,Severe
+41715_left,3,Severe
+c76664770c07,3,Severe
+30925_right,3,Severe
+37339_right,3,Severe
+44165_right,3,Severe
+6521_left,4,Proliferative
+30890_left,4,Proliferative
+28497_right,4,Proliferative
+28077_left,4,Proliferative
+31199_left,4,Proliferative
+26635_left,4,Proliferative
+5043_left,4,Proliferative
+25972_right,4,Proliferative
