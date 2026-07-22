@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class FirstCNN(nn.Module):
+class CNN5Layer(nn.Module):
     def __init__(self):
         super().__init__()
         
@@ -48,6 +48,30 @@ class FirstCNN(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x)                                
         return x
+    
+import torchvision.models as models
+
+class ResNet50DR(nn.Module):
+    def __init__(self, num_classes=5, pretrained=True):
+        super().__init__()
+        # 1. Load the backbone with pre-trained ImageNet weights
+        weights = models.ResNet50_Weights.DEFAULT if pretrained else None
+        self.resnet = models.resnet50(weights=weights)
+        
+        # 2. Replace the final 1000-class fully connected (fc) layer 
+        # with a custom head matched to our 5 DR classes
+        in_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Sequential(
+            nn.Linear(in_features, 256),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(256, num_classes)
+        )
+
+    def forward(self, x):
+        return self.resnet(x)
+    
+    
 
 # class FirstCNN(nn.Module):
 #     def __init__(self):

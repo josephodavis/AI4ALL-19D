@@ -14,7 +14,8 @@ from tqdm import tqdm
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.model_selection import StratifiedShuffleSplit, GroupShuffleSplit  # <-- Added for advanced splitting
 
-from model import FirstCNN
+from model import CNN5Layer
+from model import ResNet50DR
 from dataset import BlindnessDataset
 
 SEED = 42
@@ -41,6 +42,9 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
 
     # train mode
     model.train()
+    if isinstance(model, ResNet50DR):
+        model.resnet.eval()
+        model.resnet.fc.train()
 
     total_loss = 0.0
     correct = 0
@@ -131,6 +135,7 @@ def get_transforms():
     train_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(p=0.5),
+        # transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomRotation(degrees=(-20, 20)),
         transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.1, hue=0),
         transforms.ToTensor(),
@@ -155,9 +160,9 @@ def train(
     # Defaulting paths to match your new blended directory layout
     csv_path=project_root / "data" / "raw" / "2019_2015_data" / "traintestLabels15_trainLabels19.csv",
     image_dir=project_root / "data" / "raw" / "2019_2015_data" / "resized_traintest15_train19",
-    num_epochs=25,
+    num_epochs=10,
     batch_size=32,
-    lr=3e-4,
+    lr=1e-3,
     val_split=0.2,
 ):
     set_global_seed()
@@ -294,7 +299,17 @@ def train(
     )
 
     model = model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    if isinstance(model, ResNet50DR):
+        # Freeze the pretrained backbone and train only the replacement head.
+        for param in model.resnet.parameters():
+            param.requires_grad = False
+
+        for param in model.resnet.fc.parameters():
+            param.requires_grad = True
+
+        optimizer = optim.Adam((p for p in model.parameters() if p.requires_grad), lr=lr)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
     # Track the absolute lowest validation loss across epochs
@@ -367,15 +382,19 @@ def train(
     return model
 
 if __name__ == "__main__":
-    train(FirstCNN())
+    model_choice = input("Choose model (custom/resnet): ").strip().lower()
 
-# if __name__ == "__main__":
-#     # load the pre-trained ResNet18 model
-#     resnet_model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-    
-#     # replace the final fully connected layer to match the number of classes (5 in this case)
-#     in_features = resnet_model.fc.in_features
-#     resnet_model.fc = nn.Linear(in_features, 5)
-    
-#     # train the modified ResNet18 model
-#     train(resnet_model, num_epochs=10, lr=1e-4) 
+    if model_choice == "custom":
+        train(CNN5Layer())
+
+    elif model_choice == "resnet":
+        model = ResNet50DR(num_classes=5, pretrained=True)
+        train(
+            model=model,
+            num_epochs=15,
+            lr=3e-4,
+            batch_size=32
+        )
+
+    else:
+        print("Invalid choice. Please enter 'custom' or 'resnet'.")
