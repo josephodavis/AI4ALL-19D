@@ -2,6 +2,7 @@
 .venv/
 venv/
 .vscode/
+data/raw/2019_2015_data/*
 
 # remove data
 data/raw/2019_2015_data/
@@ -23,3 +24,6 @@ __pycache__/
 model/__pycache__/
 *.py[cod]
 *$py.class
+
+.claude/
+.devcontainer/
