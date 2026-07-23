@@ -8,6 +8,7 @@ import streamlit as st
 import torch
 from PIL import Image
 
+from explain import compute_gradcam, overlay_heatmap
 from model import CLASS_DESCRIPTIONS, CLASS_NAMES, load_model, predict
 
 # Checkpoint that lives one level up in the repo.
@@ -81,6 +82,59 @@ if uploaded is not None and model is not None:
         prob = dict(results)[name]
         st.write(f"**{name}** — {prob:.1%}")
         st.progress(min(max(prob, 0.0), 1.0))
+
+    # --- Explainability: Grad-CAM heatmap ---
+    st.markdown("#### Why this prediction? (Grad-CAM)")
+    st.caption(
+        "The heatmap highlights the retinal regions that most influenced the "
+        "model's score for the selected grade — red/yellow areas contributed "
+        "the most, transparent areas the least."
+    )
+
+    ctrl_class, ctrl_alpha = st.columns(2)
+    with ctrl_class:
+        explain_name = st.selectbox(
+            "Grade to explain",
+            CLASS_NAMES,
+            index=CLASS_NAMES.index(top_name),
+            help="Defaults to the predicted grade; pick another to see what evidence the model finds for it.",
+        )
+    with ctrl_alpha:
+        heat_alpha = st.slider("Heatmap opacity", 0.0, 1.0, 0.45, 0.05)
+
+    with st.spinner("Computing Grad-CAM…"):
+        cam = compute_gradcam(
+            model, image, CLASS_NAMES.index(explain_name), device=device
+        )
+    overlay = overlay_heatmap(image, cam, alpha=heat_alpha)
+
+    col_orig, col_cam = st.columns(2)
+    with col_orig:
+        st.image(
+            image.convert("RGB").resize((224, 224)),
+            caption="Model input (224×224)",
+            use_container_width=True,
+        )
+    with col_cam:
+        st.image(
+            overlay,
+            caption=f"Evidence for “{explain_name}” ({dict(results)[explain_name]:.1%})",
+            use_container_width=True,
+        )
+
+    with st.expander("How to read this map"):
+        st.markdown(
+            "**Grad-CAM** (Gradient-weighted Class Activation Mapping) traces the "
+            "gradients of the selected grade's score back to the network's last "
+            "convolutional layer, showing *where* in the image the evidence for "
+            "that grade came from.\n\n"
+            "- For DR grades, warm regions ideally align with clinical signs such "
+            "as microaneurysms, hemorrhages, hard exudates, or neovascularization.\n"
+            "- The map is coarse (upsampled from a 14×14 grid), so it localizes "
+            "broad regions, not individual lesions.\n"
+            "- A heatmap concentrated outside the retina (e.g. on the black "
+            "border) is a sign the prediction may not be trustworthy for this image."
+        )
 
     st.info(
         "This tool is for educational and research purposes only and is **not** a medical "

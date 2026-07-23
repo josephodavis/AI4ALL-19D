@@ -20,6 +20,10 @@ Then open the URL Streamlit prints (default: http://localhost:8501).
 
 1. Upload a fundus image (`.png`, `.jpg`, `.jpeg`).
 2. The app shows the predicted grade, confidence, and the full class-probability breakdown.
+3. A **Grad-CAM** section (`explain.py`) overlays a heatmap on the image showing which
+   retinal regions most influenced the selected grade's score. Pick any grade to explain
+   and adjust the heatmap opacity; a map concentrated outside the retina is a hint the
+   prediction may not be trustworthy for that image.
 
 The model checkpoint is loaded from `../best_model.pth` (set as `MODEL_PATH` in `app.py`).
 
