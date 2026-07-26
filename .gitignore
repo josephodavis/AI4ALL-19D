@@ -1,8 +1,27 @@
+# Virtual Environments 
+.venv/
 venv/
 .vscode/
 data/raw/2019_2015_data/*
 
+# remove data
+data/raw/2019_2015_data/
+data/raw/aptos2019-blindness-detection/
+
+# PyTorch Weights 
+*.pth
+best_model.pth
+model.pth
+
+# Generated plots and demo exports
+*.png
+loss_curves.png
+confusion_matrix.png
+data/demo_holdout_set.csv
+
+# Python Cache (Leaves out unnecessary compiler junk)
 __pycache__/
+model/__pycache__/
 *.py[cod]
 *$py.class
 
