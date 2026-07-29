@@ -13,6 +13,10 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
 
+# for converting input images into arrays and apply ben graham preprocessing
+import numpy as np
+from preprocess_ben_graham import ben_graham
+
 # APTOS 2019 diabetic-retinopathy grades, in label order (index == diagnosis code).
 CLASS_NAMES = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"]
 
@@ -92,6 +96,14 @@ def predict(model: BlindnessCNN, image: Image.Image, device: str = "cpu"):
 
     Returns a list of (class_name, probability) tuples in label order.
     """
+
+    # convert image to numpy array and ensure RGB channels
+    image_array = np.asarray(image.convert("RGB"), dtype=np.uint8)
+
+    # apply ben graham preprocessing to the image array, then convert back to PIL image
+    image_array = ben_graham(image_array)
+    image = Image.fromarray(image_array)
+
     tensor = _TRANSFORM(image.convert("RGB")).unsqueeze(0).to(device)
     with torch.no_grad():
         logits = model(tensor)
