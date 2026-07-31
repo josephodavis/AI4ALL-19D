@@ -1,7 +1,6 @@
 # AI4ALL-19D
 AI4ALL Group 19D Project Repo - https://blindnessdetection.streamlit.app/
 
-<<<<<<< HEAD
 ## Setup Instructions
 1. After creating your virtual environment, in your terminal, run: <code>pip install -r requirements.txt</code>
 2. Head to Kaggle: [Resized 2015-2019 Diabetic Retinopathy Detection](https://www.kaggle.com/datasets/c7934597/resized-2015-2019-diabetic-retinopathy-detection)
@@ -74,4 +73,3 @@ Each run writes, keyed by `MODEL_TYPE`:
 
 The final evaluation prints a per-class report, macro-F1, quadratic weighted kappa,
 and a breakdown by data source (2015 vs 2019).
->>>>>>> 1cc3a3758d87ebd4629a2e0d29e1af058fee3d8c
