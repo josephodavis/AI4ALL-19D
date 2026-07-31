@@ -1,6 +1,7 @@
 venv/
 .vscode/
 data/raw/2019_2015_data/*
+data/raw/
 
 __pycache__/
 *.py[cod]
