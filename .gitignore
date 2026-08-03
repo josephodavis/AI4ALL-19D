@@ -3,15 +3,11 @@
 venv/
 .vscode/
 data/raw/2019_2015_data/*
+data/raw/
 
 # remove data
 data/raw/2019_2015_data/
 data/raw/aptos2019-blindness-detection/
-
-# PyTorch Weights 
-*.pth
-best_model.pth
-model.pth
 
 # Generated plots and demo exports
 *.png
@@ -24,6 +20,10 @@ __pycache__/
 model/__pycache__/
 *.py[cod]
 *$py.class
+
+# training checkpoints; best_model.pth is a tracked dependency of streamlit_app
+*.pth
+!best_model.pth
 
 .claude/
 .devcontainer/
