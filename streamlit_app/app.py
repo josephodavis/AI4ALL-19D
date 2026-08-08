@@ -9,7 +9,14 @@ import torch
 from PIL import Image
 
 from explain import compute_gradcam, overlay_heatmap
-from model import CLASS_DESCRIPTIONS, CLASS_NAMES, load_model, predict
+from model import (
+    CLASS_DESCRIPTIONS,
+    CLASS_NAMES,
+    IMG_SIZE,
+    load_model,
+    model_input_image,
+    predict,
+)
 
 # Checkpoint that lives one level up in the repo.
 MODEL_PATH = os.path.normpath(
@@ -57,6 +64,9 @@ uploaded = st.file_uploader(
 
 if uploaded is not None and model is not None:
     image = Image.open(uploaded)
+    # Ben Graham preprocessing, the same pipeline the training corpus went
+    # through. Computed once here and reused for display and Grad-CAM.
+    processed = model_input_image(image)
 
     col_img, col_pred = st.columns(2)
     with col_img:
@@ -106,13 +116,13 @@ if uploaded is not None and model is not None:
         cam = compute_gradcam(
             model, image, CLASS_NAMES.index(explain_name), device=device
         )
-    overlay = overlay_heatmap(image, cam, alpha=heat_alpha)
+    overlay = overlay_heatmap(processed, cam, alpha=heat_alpha)
 
     col_orig, col_cam = st.columns(2)
     with col_orig:
         st.image(
-            image.convert("RGB").resize((224, 224)),
-            caption="Model input (224×224)",
+            processed,
+            caption=f"Model input — Ben Graham preprocessed ({IMG_SIZE}×{IMG_SIZE})",
             use_container_width=True,
         )
     with col_cam:
@@ -130,8 +140,8 @@ if uploaded is not None and model is not None:
             "that grade came from.\n\n"
             "- For DR grades, warm regions ideally align with clinical signs such "
             "as microaneurysms, hemorrhages, hard exudates, or neovascularization.\n"
-            "- The map is coarse (upsampled from a 14×14 grid), so it localizes "
-            "broad regions, not individual lesions.\n"
+            f"- The map is coarse (upsampled from a {IMG_SIZE // 32}×{IMG_SIZE // 32} "
+            "grid), so it localizes broad regions, not individual lesions.\n"
             "- A heatmap concentrated outside the retina (e.g. on the black "
             "border) is a sign the prediction may not be trustworthy for this image."
         )

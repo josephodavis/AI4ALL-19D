@@ -13,28 +13,29 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 
-from model import BlindnessCNN, _TRANSFORM
+from model import IMG_SIZE, DeepCNN, preprocess_image
 
 
 def compute_gradcam(
-    model: BlindnessCNN,
+    model: DeepCNN,
     image: Image.Image,
     class_idx: int,
     device: str = "cpu",
 ) -> np.ndarray:
-    """Return a Grad-CAM heatmap for ``class_idx`` as a (224, 224) float array in [0, 1].
+    """Return a Grad-CAM heatmap for ``class_idx`` as an (IMG_SIZE, IMG_SIZE) float array in [0, 1].
 
-    Hooks the last conv block (``bn5``) — the deepest spatial feature map
-    (14x14x512) before global average pooling.
+    Hooks the output of the conv stack (``features``) — the deepest spatial
+    feature map before global average pooling. ``image`` is the raw upload; it
+    goes through the same Ben Graham preprocessing as ``predict``.
     """
     activations: list[torch.Tensor] = []
 
     def forward_hook(_module, _inputs, output):
         activations.append(output)
 
-    handle = model.bn5.register_forward_hook(forward_hook)
+    handle = model.features.register_forward_hook(forward_hook)
     try:
-        tensor = _TRANSFORM(image.convert("RGB")).unsqueeze(0).to(device)
+        tensor = preprocess_image(image, device=device)
         with torch.enable_grad():
             logits = model(tensor)
             # Differentiate only w.r.t. the captured activation so no parameter
@@ -43,13 +44,13 @@ def compute_gradcam(
     finally:
         handle.remove()
 
-    acts = activations[0].detach()  # (1, 512, 14, 14)
-    grads = grads.detach()  # (1, 512, 14, 14)
+    acts = activations[0].detach()  # (1, C, H/32, W/32)
+    grads = grads.detach()  # same shape as acts
 
     # Weight each channel by its average gradient, sum, and keep positive evidence.
     weights = grads.mean(dim=(2, 3), keepdim=True)
     cam = F.relu((weights * acts).sum(dim=1, keepdim=True))
-    cam = F.interpolate(cam, size=(224, 224), mode="bilinear", align_corners=False)
+    cam = F.interpolate(cam, size=(IMG_SIZE, IMG_SIZE), mode="bilinear", align_corners=False)
 
     cam = cam[0, 0].cpu().numpy()
     cam -= cam.min()
@@ -70,12 +71,16 @@ def _jet_colormap(values: np.ndarray) -> np.ndarray:
 def overlay_heatmap(
     image: Image.Image, cam: np.ndarray, alpha: float = 0.45
 ) -> Image.Image:
-    """Blend the Grad-CAM heatmap onto the original image.
+    """Blend the Grad-CAM heatmap onto an image.
+
+    Pass the *model input* image (``model.model_input_image``), not the raw
+    upload: Ben Graham preprocessing crops and re-squares the fundus, so a
+    heatmap laid over the original would be spatially misaligned.
 
     ``alpha`` controls heatmap opacity; low-evidence regions stay mostly
     transparent so the fundus remains visible everywhere.
     """
-    base = image.convert("RGB").resize((224, 224))
+    base = image.convert("RGB").resize(cam.shape[::-1])
     heat = _jet_colormap(cam).astype(np.float32)
 
     base_arr = np.asarray(base, dtype=np.float32)
